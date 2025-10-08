@@ -5,7 +5,7 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
 import random
 
-from criterion import monotonicity_criterion
+from criterion import combined_randomness_criterion
 
 UI_MAINWINDOW_PATH = "./mod7_1/ui/main_window.ui"
 
@@ -79,12 +79,12 @@ class MainWindow(QMainWindow):
                     result_text = "error (empty)"
                 elif empty_cells > 0:
                     if len(user_data) >= 3:  # Нужно минимум 3 точки для расчета
-                        criterion_value = monotonicity_criterion(user_data)
+                        criterion_value = combined_randomness_criterion(user_data)
                         result_text = f"{criterion_value}% (partial)"
                     else:
                         result_text = "error (need 3+ values)"
                 else:
-                    criterion_value = monotonicity_criterion(user_data)
+                    criterion_value = combined_randomness_criterion(user_data)
                     result_text = f"{criterion_value}%"
             
             last_row = self.model.rowCount() - 1
@@ -116,7 +116,7 @@ class MainWindow(QMainWindow):
         
         rowCriterion = list()
         for ci in range(len(self.tableData)):
-            rowCriterion.append(monotonicity_criterion(self.tableData[ci]))
+            rowCriterion.append(combined_randomness_criterion(self.tableData[ci]))
         self.model.appendRow([QStandardItem(f"{el}%") for el in rowCriterion])
 
         # Делаем первые 6 столбцов только для чтения
