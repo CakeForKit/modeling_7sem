@@ -1,259 +1,185 @@
+import sys
+from PyQt5 import uic
+from PyQt5.QtWidgets import QApplication, QMainWindow, QHeaderView
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QStandardItemModel, QStandardItem
 import numpy as np
-from scipy.integrate import solve_ivp
-import matplotlib.pyplot as plt
+from mproc import calc_stabilization_times_and_probability, plot_results_per_state, print_detailed_analysis
 
-def kolmogorov_system(t, p, Lambda):
-    """
-    Система уравнений Колмогорова для произвольного числа состояний
-    p - вектор вероятностей [p0, p1, ..., p_{n-1}]
-    Lambda - матрица интенсивностей n x n
-    """
-    n = len(p)
-    dp = np.zeros(n)
-    
-    for i in range(n):
-        # Сумма входящих потоков
-        incoming = 0
-        for j in range(n):
-            if j != i:
-                incoming += Lambda[j, i] * p[j]
+UI_MAINWINDOW_PATH = "./mod7_2/ui/main_window.ui"
+
+class MainWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        uic.loadUi(UI_MAINWINDOW_PATH, self)
+        self.setWindowTitle("Марковский процесс")
+        self.setGeometry(200, 100, 1000, 500)
         
-        # Сумма исходящих потоков
-        outgoing = 0
-        for j in range(n):
-            if j != i:
-                outgoing += Lambda[i, j]
-        outgoing *= p[i]
+        # Инициализация таблиц
+        self.lambda_model = QStandardItemModel()
+        self.lambda_tab.setModel(self.lambda_model)
         
-        dp[i] = incoming - outgoing
-    
-    return dp
-
-def find_proper_settling_times(t, p, p_stationary, tolerance=0.01):
-    """
-    Находит КОРРЕКТНОЕ время установления для каждого состояния
-    Ищет момент, после которого вероятность НАВСЕГДА остается в области допуска
-    """
-    n_states = p.shape[0]
-    settling_times = {}
-    
-    for state in range(n_states):
-        state_errors = np.abs(p[state, :] - p_stationary[state])
+        self.res_model = QStandardItemModel()
+        self.res_tab.setModel(self.res_model)
         
-        # Ищем последний момент выхода за пределы допуска
-        last_exit_index = -1
-        for i in range(len(t)-1, -1, -1):  # идем с конца к началу
-            if state_errors[i] > tolerance:
-                last_exit_index = i
-                break
+        # Установка начального размера матрицы
+        self.matrix_size_sbox.valueChanged.connect(self.change_matrix_size)
+        self.initialize_matrix()  # Инициализация начального размера
         
-        # Время установления = момент после последнего выхода + небольшой запас
-        if last_exit_index >= 0:
-            settling_time = t[last_exit_index] + 0.1  # небольшой запас
-            # Убедимся, что не вышли за границы массива
-            settling_time = min(settling_time, t[-1])
-        else:
-            settling_time = 0  # всегда в пределах допуска
+        self.calc_btn.clicked.connect(self.calc)
+        self.exit_pbtn.aboutToShow.connect(self.exit)
+    
+    def initialize_matrix(self):
+        rows, cols = 2, 2
+        self.lambda_model.setRowCount(rows)
+        self.lambda_model.setColumnCount(cols)
         
-        settling_times[state] = settling_time
-    
-    return settling_times
-
-def stationary_solution(Lambda):
-    """Нахождение стационарных вероятностей"""
-    n = Lambda.shape[0]
-    A = np.vstack([Lambda.T, np.ones(n)])
-    b = np.zeros(n + 1)
-    b[-1] = 1
-    p_star = np.linalg.lstsq(A, b, rcond=None)[0]
-    return p_star
-
-def analyze_settling_behavior(Lambda, initial_conditions, t_max, tolerance):
-    """Полный анализ времени установления для произвольной системы"""
-    
-    n = Lambda.shape[0]
-    
-    # Проверяем согласованность размеров
-    if len(initial_conditions) != n:
-        raise ValueError(f"Размер initial_conditions ({len(initial_conditions)}) не совпадает с размером Lambda ({n})")
-    
-    # 1. Находим стационарное решение
-    p_stationary = stationary_solution(Lambda)
-    print(f"Стационарные вероятности: {p_stationary}")
-    print(f"Сумма вероятностей: {np.sum(p_stationary):.10f}")
-    
-    # 2. Решаем динамическую систему
-    t_span = (0, t_max)
-    t_eval = np.linspace(0, t_max, 1000)
-    
-    solution = solve_ivp(
-        kolmogorov_system, # kolmogorov_system_vectorized, 
-        t_span, 
-        initial_conditions, 
-        args=(Lambda,),
-        t_eval=t_eval,
-        method='RK45'
-    )
-    
-    # 3. Находим время установления для каждого состояния
-    settling_times = find_proper_settling_times(
-        solution.t, solution.y, p_stationary, tolerance
-    )
-    
-    print(f"\nВремя установления для каждого состояния (точность {tolerance}):")
-    for state in range(len(initial_conditions)):
-        print(f"  Состояние S{state}: t = {settling_times[state]:.3f}")
-    
-    # 4. Анализ по собственным значениям
-    eigenvalues, eigenvectors = np.linalg.eig(Lambda.T)
-    nonzero_eigenvals = eigenvalues[np.abs(eigenvalues) > 1e-10]
-    
-    if len(nonzero_eigenvals) > 0:
-        slowest_decay = np.min(np.abs(nonzero_eigenvals))
-        theoretical_time = 3.0 / slowest_decay
-        print(f"Теоретическое время (3τ): {theoretical_time:.3f}")
-        print(f"Самое медленное затухание: {slowest_decay:.3f}")
-    else:
-        print("Не удалось найти ненулевые собственные значения")
-        theoretical_time = None
-    
-    return solution, settling_times, p_stationary
-
-def plot_results_per_state(solution, settling_times, p_stationary):
-    # Визуализация всех состояний на одном графике
-    plt.figure(figsize=(12, 8))
-
-    colors = ['blue', 'red', 'green', 'orange']
-    line_styles = ['-', '-', '-', '-']
-    markers = ['o', 's', '^', 'D']
-
-    # Графики вероятностей для всех состояний
-    for state in range(4):
-        plt.plot(solution.t, solution.y[state], 
-                label=f'P{state}(t)', 
-                linewidth=2.5, 
-                color=colors[state],
-                linestyle=line_styles[state])
+        # Заполняем нулями
+        for row in range(rows):
+            for col in range(cols):
+                if row == col:
+                    item = QStandardItem("")
+                    item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                    self.lambda_model.setItem(row, col, item)
+                else:
+                    item = QStandardItem("0.0")
+                    item.setTextAlignment(Qt.AlignCenter)
+                    self.lambda_model.setItem(row, col, item)
+                
         
-        # Стационарные значения
-        plt.axhline(y=p_stationary[state], 
-                    color=colors[state], 
-                    linestyle='--', 
-                    alpha=0.6,
-                    linewidth=1.5)
+        # Настраиваем заголовки
+        self.lambda_model.setHorizontalHeaderLabels([str(i+1) for i in range(cols)])
         
-        # Маркеры времени установления
-        settling_time = settling_times[state]
-        y_val = solution.y[state, np.argmin(np.abs(solution.t - settling_time))]
-        plt.plot(settling_time, y_val, 
-                marker=markers[state], 
-                markersize=10,
-                color=colors[state],
-                markeredgecolor='black',
-                markeredgewidth=1,
-                label=f'S{state} стаб.: t={settling_time:.2f}')
+        # Настраиваем растяжение столбцов
+        header = self.lambda_tab.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.Stretch)
+        
+    def change_matrix_size(self):
+        new_size = self.matrix_size_sbox.value()
+        
+        # Сохраняем текущие данные
+        old_data = []
+        current_rows = self.lambda_model.rowCount()
+        current_cols = self.lambda_model.columnCount()
+        
+        if current_rows > 0 and current_cols > 0:
+            for row in range(min(current_rows, new_size)):
+                row_data = []
+                for col in range(min(current_cols, new_size)):
+                    item = self.lambda_model.item(row, col)
+                    if item and item.text():
+                        try:
+                            row_data.append(float(item.text()))
+                        except ValueError:
+                            row_data.append(0.0)
+                    else:
+                        row_data.append(0.0)
+                old_data.append(row_data)
+        
+        # Устанавливаем новый размер модели
+        self.lambda_model.setRowCount(new_size)
+        self.lambda_model.setColumnCount(new_size)
+        
+        # Восстанавливаем данные
+        for row in range(new_size):
+            for col in range(new_size):
+                if row == col:
+                    item = QStandardItem("")
+                    item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                    self.lambda_model.setItem(row, col, item)
+                else:
+                    item = QStandardItem("0.0")
+                    item.setTextAlignment(Qt.AlignCenter)
+                    self.lambda_model.setItem(row, col, item)
 
-    # Настройки графика
-    plt.xlabel('Время', fontsize=12)
-    plt.ylabel('Вероятность', fontsize=12)
-    plt.title('Динамика вероятностей состояний системы', fontsize=14, fontweight='bold')
-    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=10)
-    plt.grid(True, alpha=0.3)
-    plt.xlim(0, 10)
-    plt.ylim(-0.05, 1.05)
-
-    # Добавляем информацию о стационарных значениях
-    text_str = "Стационарные значения:\n"
-    for state in range(4):
-        text_str += f"P{state}* = {p_stationary[state]:.3f}\n"
-
-    plt.text(0.02, 0.98, text_str, transform=plt.gca().transAxes, 
-            verticalalignment='top', fontsize=10,
-            bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
-
-    plt.tight_layout()
-    plt.show()
+        for row in range(min(len(old_data), new_size)):
+            for col in range(min(len(old_data[row]), new_size)):
+                if row != col:
+                    item = QStandardItem(str(old_data[row][col]))
+                    self.lambda_model.setItem(row, col, item)
+        
+        # Настраиваем заголовки
+        self.lambda_model.setHorizontalHeaderLabels([f"{i+1}" for i in range(new_size)])
+        self.lambda_model.setVerticalHeaderLabels([f"{i+1}" for i in range(new_size)])
+        
+        # Настраиваем растяжение столбцов
+        header = self.lambda_tab.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.Stretch)
     
-    # # График ошибок по состояниям
-    # plt.figure(figsize=(12, 6))
-    # for state in range(n):
-    #     errors = np.abs(solution.y[state] - p_stationary[state])
-    #     plt.plot(solution.t, errors, label=f'Ошибка S{state}', linewidth=2, color=colors[state])
-    #     plt.axhline(y=0.01, color='black', linestyle='--', label='Порог 0.01')
+    def get_matrix_from_table(self):
+        """Получает матрицу из таблицы"""
+        size = self.matrix_size_sbox.value()
+        matrix = np.zeros((size, size))
         
-    #     # Маркер времени установления
-    #     settling_time = settling_times[state]
-    #     error_at_settling = errors[np.argmin(np.abs(solution.t - settling_time))]
-    #     plt.plot(settling_time, error_at_settling, 'o', markersize=8, color=colors[state])
+        for row in range(size):
+            for col in range(size):
+                item = self.lambda_model.item(row, col)
+                if item and item.text():
+                    try:
+                        matrix[row, col] = float(item.text())
+                    except ValueError:
+                        matrix[row, col] = 0.0
+        
+        return matrix
     
-    # plt.xlabel('Время')
-    # plt.ylabel('Ошибка')
-    # plt.title('Отклонения от стационарных значений по состояниям')
-    # plt.legend()
-    # plt.grid(True, alpha=0.3)
-    # plt.yscale('log')
-    plt.show()
-
-def print_detailed_analysis(solution, p_stationary, tolerance=0.01):
-    """Детальный анализ для каждого состояния"""
-    n = solution.y.shape[0]
-    
-    print("\n" + "="*60)
-    print("ДЕТАЛЬНЫЙ АНАЛИЗ ПО СОСТОЯНИЯМ:")
-    print("="*60)
-
-    for state in range(n):
-        state_errors = np.abs(solution.y[state] - p_stationary[state])
-        settling_indices = np.where(state_errors <= tolerance)[0]
+    def update_result_table(self, p_stationary, settling_time):
+        """Обновляет таблицу с результатами"""
+        size = len(p_stationary)
         
-        if len(settling_indices) > 0:
-            settling_idx = settling_indices[0]
-            state_settling_time = solution.t[settling_idx]
-        else:
-            state_settling_time = solution.t[-1]
+        # Очищаем модель
+        self.res_model.clear()
+        self.res_model.setRowCount(size) 
+        self.res_model.setColumnCount(2)
         
-        print(f"Состояние S{state}:")
-        print(f"  Стационарная вероятность: {p_stationary[state]:.4f}")
-        print(f"  Время установления: {state_settling_time:.3f}")
-        print(f"  Начальное значение: {solution.y[state, 0]:.4f}")
-        print(f"  Финальное значение: {solution.y[state, -1]:.4f}")
-        print()
+        # Устанавливаем заголовки
+        self.res_model.setHorizontalHeaderLabels(["Предельная вероятность", "Время стабилизации"])
+        self.res_model.setVerticalHeaderLabels([f"S{i+1}" for i in range(size)])
+        
+        # Заполняем стационарные вероятности
+        for i in range(size):            
+            # Значение вероятности
+            prob_item = QStandardItem(f"{p_stationary[i]:.4f}")
+            prob_item.setFlags(prob_item.flags() & ~Qt.ItemIsEditable)
+            prob_item.setTextAlignment(Qt.AlignCenter)
+            self.res_model.setItem(i, 0, prob_item)
 
-# Пример использования с произвольной матрицей
+            # Добавляем время стабилизации
+            time_item = QStandardItem(f"{settling_time[i]:.4f}")
+            prob_item.setFlags(prob_item.flags() & ~Qt.ItemIsEditable)
+            time_item.setTextAlignment(Qt.AlignCenter)
+            self.res_model.setItem(i, 1, time_item)
+        
+        # Настраиваем растяжение столбцов
+        header = self.res_tab.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.Stretch)
+
+    def calc(self):
+        try:
+            lambda_matrix = self.get_matrix_from_table()
+            if np.all(lambda_matrix == 0):
+                self.statusbar.showMessage("Ошибка: матрица интенсивностей не заполнена или заполнена неверно!")
+                return
+            print("Матрица интенсивностей:")
+            print(lambda_matrix)
+            
+            # Вычисляем результаты
+            solution, settling_time, p_stationary = calc_stabilization_times_and_probability(Lambda=lambda_matrix)
+            self.update_result_table(p_stationary, settling_time)
+
+            # plot_results_per_state(solution, settling_time, p_stationary)
+            print_detailed_analysis(solution, p_stationary)
+            self.statusbar.showMessage("Расчет завершен успешно!")
+            
+        except Exception as e:
+            self.statusbar.showMessage(f"Ошибка при расчете: {str(e)}")
+            print(f"Ошибка: {e}")
+
+    def exit(self):
+        sys.exit(0)
+
 if __name__ == "__main__":
-
-    # print("\n=== СИСТЕМА С 4 СОСТОЯНИЯМИ ===")
-    # Lambda_4 = np.array([
-    #     [-2,    2,    0,    0],   # S₀: уходит в S₁ с интенсивностью 2
-    #     [ 0,   -3,    3,    0],   # S₁: уходит в S₂ с интенсивностью 3
-    #     [ 0,    0,   -3,    3],   # S₂: уходит в S₃ с интенсивностью 3
-    #     [ 3,    0,    0,   -3]    # S₃: уходит в S₀ с интенсивностью 3
-    # ])
-    # initial_4 = [1.0, 0.0, 0.0, 0.0]
-    
-    # solution, settling_time, p_stationary = analyze_settling_behavior(
-    #     Lambda_4, initial_4, t_max=5, tolerance=1e-3
-    # )
-
-    print("\n=== СИСТЕМА С 5 СОСТОЯНИЯМИ ===")
-    Lambda_5 = np.array([
-        [0, 0.5, 0, 0, 0],
-        [0, 0, 2, 0, 0],
-        [0, 0, 0, 1.5, 1.5],
-        [0.8, 0, 0, 0, 0],
-        [2, 0, 0, 0, 0]
-    ])
-    for i in range(Lambda_5.shape[0]):
-        s = 0
-        for j in range(Lambda_5.shape[0]):
-            s += Lambda_5[i][j]
-        Lambda_5[i][i] = -s
-    print(Lambda_5)
-    initial_5 = [1.0, 0.0, 0.0, 0.0, 0.0]
-    
-    solution, settling_time, p_stationary = analyze_settling_behavior(
-        Lambda_5, initial_5, t_max=10, tolerance=1e-2
-    )
-    plot_results_per_state(solution, settling_time, p_stationary)
-    print_detailed_analysis(solution, p_stationary)
+    app = QApplication(sys.argv)
+    window = MainWindow()
+    window.show()
+    sys.exit(app.exec_())
     
