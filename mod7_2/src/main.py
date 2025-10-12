@@ -29,14 +29,7 @@ def kolmogorov_system(t, p, Lambda):
     
     return dp
 
-def kolmogorov_system_vectorized(t, p, Lambda):
-    """
-    Векторизованная версия системы уравнений Колмогорова
-    Более эффективная для больших систем
-    """
-    return p @ Lambda.T
-
-def find_settling_time(t, p, p_stationary, tolerance=0.01):
+def find_settling_time(t, p, p_stationary, tolerance):
     """
     Находит время установления, когда все вероятности 
     отличаются от стационарных не более чем на tolerance
@@ -82,7 +75,7 @@ def stationary_solution(Lambda):
     
     return p_star
 
-def analyze_settling_behavior(Lambda, initial_conditions, t_max=20, tolerance=0.01):
+def analyze_settling_behavior(Lambda, initial_conditions, t_max, tolerance):
     """Полный анализ времени установления для произвольной системы"""
     
     n = Lambda.shape[0]
@@ -233,7 +226,7 @@ if __name__ == "__main__":
     initial_4 = [1.0, 0.0, 0.0, 0.0]
     
     solution_4, settling_time_4, p_stationary_4 = analyze_settling_behavior(
-        Lambda_4, initial_4, t_max=20, tolerance=0.01
+        Lambda_4, initial_4, t_max=5, tolerance=1e-3
     )
     plot_results(solution_4, settling_time_4, p_stationary_4, Lambda_4)
     print_detailed_analysis(solution_4, p_stationary_4)
