@@ -2,6 +2,9 @@ import numpy as np
 from scipy.integrate import solve_ivp
 import matplotlib.pyplot as plt
 
+T_MAX = 5
+TOLERANCE = 1e-3
+
 def kolmogorov_system(t, p, Lambda):
     """
     Система уравнений Колмогорова для произвольного числа состояний
@@ -212,7 +215,7 @@ def calc_stabilization_times_and_probability(Lambda):
     initial[0] = 1.0
     
     solution, settling_time, p_stationary = analyze_settling_behavior(
-        Lambda, initial, t_max=10, tolerance=1e-2
+        Lambda, initial, t_max=T_MAX, tolerance=TOLERANCE
     )           
     return solution, settling_time, p_stationary
 

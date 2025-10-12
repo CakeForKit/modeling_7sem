@@ -1,10 +1,11 @@
 import sys
 from PyQt5 import uic
-from PyQt5.QtWidgets import QApplication, QMainWindow, QHeaderView
+from PyQt5.QtWidgets import (QApplication, QMainWindow, QHeaderView)
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
 import numpy as np
 from mproc import calc_stabilization_times_and_probability, plot_results_per_state, print_detailed_analysis
+from graph_window import GraphWindow
 
 UI_MAINWINDOW_PATH = "./mod7_2/ui/main_window.ui"
 
@@ -13,7 +14,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         uic.loadUi(UI_MAINWINDOW_PATH, self)
         self.setWindowTitle("Марковский процесс")
-        self.setGeometry(200, 100, 1000, 500)
+        self.setGeometry(200, 100, 800, 500)
         
         # Инициализация таблиц
         self.lambda_model = QStandardItemModel()
@@ -28,6 +29,9 @@ class MainWindow(QMainWindow):
         
         self.calc_btn.clicked.connect(self.calc)
         self.exit_pbtn.aboutToShow.connect(self.exit)
+
+        # Переменная для хранения окна с графиками
+        self.graph_window = None
     
     def initialize_matrix(self):
         rows, cols = 2, 2
@@ -138,13 +142,13 @@ class MainWindow(QMainWindow):
         # Заполняем стационарные вероятности
         for i in range(size):            
             # Значение вероятности
-            prob_item = QStandardItem(f"{p_stationary[i]:.4f}")
+            prob_item = QStandardItem(f"{p_stationary[i]:.3f}")
             prob_item.setFlags(prob_item.flags() & ~Qt.ItemIsEditable)
             prob_item.setTextAlignment(Qt.AlignCenter)
             self.res_model.setItem(i, 0, prob_item)
 
             # Добавляем время стабилизации
-            time_item = QStandardItem(f"{settling_time[i]:.4f}")
+            time_item = QStandardItem(f"{settling_time[i]:.3f}")
             prob_item.setFlags(prob_item.flags() & ~Qt.ItemIsEditable)
             time_item.setTextAlignment(Qt.AlignCenter)
             self.res_model.setItem(i, 1, time_item)
@@ -169,6 +173,9 @@ class MainWindow(QMainWindow):
             # plot_results_per_state(solution, settling_time, p_stationary)
             print_detailed_analysis(solution, p_stationary)
             self.statusbar.showMessage("Расчет завершен успешно!")
+            # Создаем новое окно с графиками
+            self.graph_window = GraphWindow(solution, settling_time, p_stationary, self)
+            self.graph_window.show()
             
         except Exception as e:
             self.statusbar.showMessage(f"Ошибка при расчете: {str(e)}")
