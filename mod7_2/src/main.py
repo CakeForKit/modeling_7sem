@@ -29,50 +29,43 @@ def kolmogorov_system(t, p, Lambda):
     
     return dp
 
-def find_settling_time(t, p, p_stationary, tolerance):
+def find_proper_settling_times(t, p, p_stationary, tolerance=0.01):
     """
-    Находит время установления, когда все вероятности 
-    отличаются от стационарных не более чем на tolerance
+    Находит КОРРЕКТНОЕ время установления для каждого состояния
+    Ищет момент, после которого вероятность НАВСЕГДА остается в области допуска
     """
     n_states = p.shape[0]
+    settling_times = {}
     
-    for i in range(len(t)):
-        # Проверяем все состояния
-        max_error = 0
-        for state in range(n_states):
-            error = abs(p[state, i] - p_stationary[state])
-            max_error = max(max_error, error)
+    for state in range(n_states):
+        state_errors = np.abs(p[state, :] - p_stationary[state])
         
-        if max_error <= tolerance:
-            return t[i], max_error
+        # Ищем последний момент выхода за пределы допуска
+        last_exit_index = -1
+        for i in range(len(t)-1, -1, -1):  # идем с конца к началу
+            if state_errors[i] > tolerance:
+                last_exit_index = i
+                break
+        
+        # Время установления = момент после последнего выхода + небольшой запас
+        if last_exit_index >= 0:
+            settling_time = t[last_exit_index] + 0.1  # небольшой запас
+            # Убедимся, что не вышли за границы массива
+            settling_time = min(settling_time, t[-1])
+        else:
+            settling_time = 0  # всегда в пределах допуска
+        
+        settling_times[state] = settling_time
     
-    return t[-1], max_error
+    return settling_times
 
 def stationary_solution(Lambda):
-    """
-    Нахождение стационарных вероятностей решением системы:
-    P × Λ = 0, Σpi = 1
-    """
+    """Нахождение стационарных вероятностей"""
     n = Lambda.shape[0]
-    
-    # Проверяем корректность матрицы
-    for i in range(n):
-        row_sum = np.sum(Lambda[i, :])
-        if abs(row_sum) > 1e-10:
-            print(f"Предупреждение: Сумма строки {i} = {row_sum:.2e} (должна быть 0)")
-    
-    # Создаем расширенную систему: P·Λ = 0 и Σpi = 1
     A = np.vstack([Lambda.T, np.ones(n)])
     b = np.zeros(n + 1)
-    b[-1] = 1  # условие нормировки
-
-    # Решаем методом наименьших квадратов
-    p_star, residuals, rank, s = np.linalg.lstsq(A, b, rcond=None)
-    
-    # Проверяем неотрицательность вероятностей
-    if np.any(p_star < -1e-10):
-        print("Внимание: найдены отрицательные вероятности! Проверьте матрицу Λ.")
-    
+    b[-1] = 1
+    p_star = np.linalg.lstsq(A, b, rcond=None)[0]
     return p_star
 
 def analyze_settling_behavior(Lambda, initial_conditions, t_max, tolerance):
@@ -102,13 +95,14 @@ def analyze_settling_behavior(Lambda, initial_conditions, t_max, tolerance):
         method='RK45'
     )
     
-    # 3. Находим время установления
-    settling_time, final_error = find_settling_time(
+    # 3. Находим время установления для каждого состояния
+    settling_times = find_proper_settling_times(
         solution.t, solution.y, p_stationary, tolerance
     )
     
-    print(f"Время установления (точность {tolerance}): {settling_time:.3f}")
-    print(f"Финальная ошибка: {final_error:.6f}")
+    print(f"\nВремя установления для каждого состояния (точность {tolerance}):")
+    for state in range(len(initial_conditions)):
+        print(f"  Состояние S{state}: t = {settling_times[state]:.3f}")
     
     # 4. Анализ по собственным значениям
     eigenvalues, eigenvectors = np.linalg.eig(Lambda.T)
@@ -123,49 +117,81 @@ def analyze_settling_behavior(Lambda, initial_conditions, t_max, tolerance):
         print("Не удалось найти ненулевые собственные значения")
         theoretical_time = None
     
-    return solution, settling_time, p_stationary
+    return solution, settling_times, p_stationary
 
-def plot_results(solution, settling_time, p_stationary, Lambda):
-    """Визуализация результатов для произвольного числа состояний"""
-    n = Lambda.shape[0]
-    
+def plot_results_per_state(solution, settling_times, p_stationary):
+    # Визуализация всех состояний на одном графике
     plt.figure(figsize=(12, 8))
 
-    # График вероятностей
-    plt.subplot(1, 1, 1)
-    
-    colors = plt.cm.tab10(np.linspace(0, 1, n))
-    for state in range(n):
+    colors = ['blue', 'red', 'green', 'orange']
+    line_styles = ['-', '-', '-', '-']
+    markers = ['o', 's', '^', 'D']
+
+    # Графики вероятностей для всех состояний
+    for state in range(4):
         plt.plot(solution.t, solution.y[state], 
-                label=f'p{state}(t)', linewidth=2, color=colors[state])
-        plt.axhline(y=p_stationary[state], color=colors[state], 
-                   linestyle='--', alpha=0.7, label=f'p{state}*')
+                label=f'P{state}(t)', 
+                linewidth=2.5, 
+                color=colors[state],
+                linestyle=line_styles[state])
+        
+        # Стационарные значения
+        plt.axhline(y=p_stationary[state], 
+                    color=colors[state], 
+                    linestyle='--', 
+                    alpha=0.6,
+                    linewidth=1.5)
+        
+        # Маркеры времени установления
+        settling_time = settling_times[state]
+        y_val = solution.y[state, np.argmin(np.abs(solution.t - settling_time))]
+        plt.plot(settling_time, y_val, 
+                marker=markers[state], 
+                markersize=10,
+                color=colors[state],
+                markeredgecolor='black',
+                markeredgewidth=1,
+                label=f'S{state} стаб.: t={settling_time:.2f}')
 
-    # Время установления
-    plt.axvline(x=settling_time, color='red', linestyle='-', 
-               label=f'Время установления: {settling_time:.2f}')
-
-    plt.xlabel('Время')
-    plt.ylabel('Вероятность')
-    plt.title(f'Динамика вероятностей ({n} состояний)')
-    plt.legend()
+    # Настройки графика
+    plt.xlabel('Время', fontsize=12)
+    plt.ylabel('Вероятность', fontsize=12)
+    plt.title('Динамика вероятностей состояний системы', fontsize=14, fontweight='bold')
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=10)
     plt.grid(True, alpha=0.3)
+    plt.xlim(0, 10)
+    plt.ylim(-0.05, 1.05)
 
-    # График ошибки
-    '''
-    plt.subplot(2, 1, 2)
-    errors = np.max(np.abs(solution.y - p_stationary.reshape(-1, 1)), axis=0)
-    plt.plot(solution.t, errors, 'r-', linewidth=2, label='Максимальная ошибка')
-    plt.axhline(y=0.01, color='black', linestyle='--', label='Порог 0.01')
-    plt.axvline(x=settling_time, color='red', linestyle='-')
-    plt.xlabel('Время')
-    plt.ylabel('Ошибка')
-    plt.title('Отклонение от стационарного режима')
-    plt.legend()
-    plt.grid(True, alpha=0.3)
-    plt.yscale('log')
-    '''
+    # Добавляем информацию о стационарных значениях
+    text_str = "Стационарные значения:\n"
+    for state in range(4):
+        text_str += f"P{state}* = {p_stationary[state]:.3f}\n"
+
+    plt.text(0.02, 0.98, text_str, transform=plt.gca().transAxes, 
+            verticalalignment='top', fontsize=10,
+            bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
+
     plt.tight_layout()
+    plt.show()
+    
+    # # График ошибок по состояниям
+    # plt.figure(figsize=(12, 6))
+    # for state in range(n):
+    #     errors = np.abs(solution.y[state] - p_stationary[state])
+    #     plt.plot(solution.t, errors, label=f'Ошибка S{state}', linewidth=2, color=colors[state])
+    #     plt.axhline(y=0.01, color='black', linestyle='--', label='Порог 0.01')
+        
+    #     # Маркер времени установления
+    #     settling_time = settling_times[state]
+    #     error_at_settling = errors[np.argmin(np.abs(solution.t - settling_time))]
+    #     plt.plot(settling_time, error_at_settling, 'o', markersize=8, color=colors[state])
+    
+    # plt.xlabel('Время')
+    # plt.ylabel('Ошибка')
+    # plt.title('Отклонения от стационарных значений по состояниям')
+    # plt.legend()
+    # plt.grid(True, alpha=0.3)
+    # plt.yscale('log')
     plt.show()
 
 def print_detailed_analysis(solution, p_stationary, tolerance=0.01):
@@ -195,57 +221,39 @@ def print_detailed_analysis(solution, p_stationary, tolerance=0.01):
 
 # Пример использования с произвольной матрицей
 if __name__ == "__main__":
-    '''
-    # Пример 1: 3 состояния (оригинальная система)
-    print("=== СИСТЕМА С 3 СОСТОЯНИЯМИ ===")
-    Lambda_3 = np.array([
-        [-0.5,   0.3,   0.2],
-        [0.4,   -0.7,   0.3], 
-        [0.1,   0.2,   -0.3]
-    ])
-    initial_3 = [1.0, 0.0, 0.0]
+
+    # print("\n=== СИСТЕМА С 4 СОСТОЯНИЯМИ ===")
+    # Lambda_4 = np.array([
+    #     [-2,    2,    0,    0],   # S₀: уходит в S₁ с интенсивностью 2
+    #     [ 0,   -3,    3,    0],   # S₁: уходит в S₂ с интенсивностью 3
+    #     [ 0,    0,   -3,    3],   # S₂: уходит в S₃ с интенсивностью 3
+    #     [ 3,    0,    0,   -3]    # S₃: уходит в S₀ с интенсивностью 3
+    # ])
+    # initial_4 = [1.0, 0.0, 0.0, 0.0]
     
-    solution_3, settling_time_3, p_stationary_3 = analyze_settling_behavior(
-        Lambda_3, initial_3, t_max=15, tolerance=0.01
-    )
-    plot_results(solution_3, settling_time_3, p_stationary_3, Lambda_3)
-    print_detailed_analysis(solution_3, p_stationary_3)
-    '''
-    # Пример 2: 4 состояния
-    print("\n=== СИСТЕМА С 4 СОСТОЯНИЯМИ ===")
-    Lambda_4 = np.array([
-        [-2,    2,    0,    0],   # S₀: уходит в S₁ с интенсивностью 2
-        [ 0,   -3,    3,    0],   # S₁: уходит в S₂ с интенсивностью 3
-        [ 0,    0,   -3,    3],   # S₂: уходит в S₃ с интенсивностью 3
-        [ 3,    0,    0,   -3]    # S₃: уходит в S₀ с интенсивностью 3
-        # [-2,   0,   0,   3],
-        # [2,   -3,   0,   0],
-        # [0,   3,   -3,   0],
-        # [0,   0,   3,   -3]
-    ])
-    initial_4 = [1.0, 0.0, 0.0, 0.0]
-    
-    solution_4, settling_time_4, p_stationary_4 = analyze_settling_behavior(
-        Lambda_4, initial_4, t_max=5, tolerance=1e-3
-    )
-    plot_results(solution_4, settling_time_4, p_stationary_4, Lambda_4)
-    print_detailed_analysis(solution_4, p_stationary_4)
-    
-    '''
-    # Пример 3: 5 состояний
+    # solution, settling_time, p_stationary = analyze_settling_behavior(
+    #     Lambda_4, initial_4, t_max=5, tolerance=1e-3
+    # )
+
     print("\n=== СИСТЕМА С 5 СОСТОЯНИЯМИ ===")
     Lambda_5 = np.array([
-        [-1.0,   0.4,   0.3,   0.2,   0.1],
-        [0.3,   -0.9,   0.3,   0.2,   0.1],
-        [0.2,   0.2,   -0.8,   0.2,   0.2],
-        [0.3,   0.1,   0.1,   -0.7,   0.2],
-        [0.2,   0.2,   0.1,   0.1,   -0.6]
+        [0, 0.5, 0, 0, 0],
+        [0, 0, 2, 0, 0],
+        [0, 0, 0, 1.5, 1.5],
+        [0.8, 0, 0, 0, 0],
+        [2, 0, 0, 0, 0]
     ])
+    for i in range(Lambda_5.shape[0]):
+        s = 0
+        for j in range(Lambda_5.shape[0]):
+            s += Lambda_5[i][j]
+        Lambda_5[i][i] = -s
+    print(Lambda_5)
     initial_5 = [1.0, 0.0, 0.0, 0.0, 0.0]
     
-    solution_5, settling_time_5, p_stationary_5 = analyze_settling_behavior(
-        Lambda_5, initial_5, t_max=25, tolerance=0.01
+    solution, settling_time, p_stationary = analyze_settling_behavior(
+        Lambda_5, initial_5, t_max=10, tolerance=1e-2
     )
-    plot_results(solution_5, settling_time_5, p_stationary_5, Lambda_5)
-    print_detailed_analysis(solution_5, p_stationary_5)
-    '''
+    plot_results_per_state(solution, settling_time, p_stationary)
+    print_detailed_analysis(solution, p_stationary)
+    
