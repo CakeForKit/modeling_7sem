@@ -175,7 +175,7 @@ class MainWindow(QMainWindow):
             self.statusbar.showMessage("Расчет завершен успешно!")
             # Создаем новое окно с графиками
             self.graph_window = GraphWindow(solution, settling_time, p_stationary, self)
-            self.graph_window.show()
+            # self.graph_window.show()
             
         except Exception as e:
             self.statusbar.showMessage(f"Ошибка при расчете: {str(e)}")

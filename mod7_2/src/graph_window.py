@@ -90,7 +90,7 @@ class GraphWindow(QDialog):
         # Настройки графика
         ax.set_xlabel('Время', fontsize=12)
         ax.set_ylabel('Вероятность', fontsize=12)
-        ax.set_title('Динамика вероятностей состояний системы', fontsize=14, fontweight='bold')
+        # ax.set_title('Динамика вероятностей состояний системы', fontsize=14, fontweight='bold')
         ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=10)
         ax.grid(True, alpha=0.3)
         # ax.set_xlim(0, 5)
