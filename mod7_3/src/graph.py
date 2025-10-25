@@ -7,7 +7,6 @@ from matplotlib.figure import Figure
 
 from distributions import *
 
-# Класс для окна с графиками
 class DistributionGraphWindow(QDialog):
     def __init__(self, distribution_type: str, parameters: dict, parent=None):
         super().__init__(parent)
@@ -68,44 +67,49 @@ class DistributionGraphWindow(QDialog):
         self.figure.tight_layout(pad=3.0)
     
     def plot_uniform(self):
-        a = self.parameters['a']
-        b = self.parameters['b']
+        # Берем параметры распределения и диапазон отображения
+        uniform_a = self.parameters['uniform_a']  # Параметр a распределения
+        uniform_b = self.parameters['uniform_b']  # Параметр b распределения
+        display_a = self.parameters['a']          # Начало диапазона отображения
+        display_b = self.parameters['b']          # Конец диапазона отображения
         
         # Создаем подграфики
         ax1, ax2 = self.figure.subplots(2, 1)
         
-        # График плотности
-        x_density = np.linspace(a - (b - a) * 0.2, b + (b - a) * 0.2, 1000)
-        y_density = [UniformDensityFunc(x, a, b) for x in x_density]
+        # График плотности - используем диапазон от display_a до display_b
+        x_density = np.linspace(display_a, display_b, 1000)
+        y_density = [UniformDensityFunc(x, uniform_a, uniform_b) for x in x_density]
         
         ax1.plot(x_density, y_density, 'b-', linewidth=2)
-        ax1.set_title(f"Функция плотности равномерного распределения R[{a}, {b}]", fontsize=12)
+        ax1.set_title(f"Функция плотности равномерного распределения R[{uniform_a}, {uniform_b}]", fontsize=12)
         ax1.set_xlabel('x')
         ax1.set_ylabel('f(x)')
         ax1.grid(True, alpha=0.3)
-        ax1.set_xlim(a - (b - a) * 0.3, b + (b - a) * 0.3)
+        ax1.set_xlim(display_a, display_b)
         
-        # График функции распределения
-        x_dist = np.linspace(a - (b - a) * 0.2, b + (b - a) * 0.2, 1000)
-        y_dist = [UniformDistributionFunc(x, a, b) for x in x_dist]
+        # График функции распределения - используем диапазон от display_a до display_b
+        x_dist = np.linspace(display_a, display_b, 1000)
+        y_dist = [UniformDistributionFunc(x, uniform_a, uniform_b) for x in x_dist]
         
         ax2.plot(x_dist, y_dist, 'r-', linewidth=2)
-        ax2.set_title(f"Функция распределения равномерного распределения R[{a}, {b}]", fontsize=12)
+        ax2.set_title(f"Функция распределения равномерного распределения R[{uniform_a}, {uniform_b}]", fontsize=12)
         ax2.set_xlabel('x')
         ax2.set_ylabel('F(x)')
         ax2.grid(True, alpha=0.3)
-        ax2.set_xlim(a - (b - a) * 0.3, b + (b - a) * 0.3)
+        ax2.set_xlim(display_a, display_b)
         ax2.set_ylim(-0.1, 1.1)
     
     def plot_normal(self):
         m = self.parameters['m']
         d = self.parameters['d']
+        a = self.parameters.get('a', m - 4 * sqrt(d))  # Если a не передан, используем автоматический расчет
+        b = self.parameters.get('b', m + 4 * sqrt(d))  # Если b не передан, используем автоматический расчет
         sigma = sqrt(d)
         
         ax1, ax2 = self.figure.subplots(2, 1)
         
-        # График плотности
-        x_density = np.linspace(m - 4 * sigma, m + 4 * sigma, 1000)
+        # График плотности - используем диапазон от a до b
+        x_density = np.linspace(a, b, 1000)
         y_density = [NormalDensityFunc(x, m, sigma) for x in x_density]
         
         ax1.plot(x_density, y_density, 'b-', linewidth=2)
@@ -113,9 +117,10 @@ class DistributionGraphWindow(QDialog):
         ax1.set_xlabel('x')
         ax1.set_ylabel('f(x)')
         ax1.grid(True, alpha=0.3)
+        ax1.set_xlim(a, b)
         
-        # График функции распределения
-        x_dist = np.linspace(m - 4 * sigma, m + 4 * sigma, 1000)
+        # График функции распределения - используем диапазон от a до b
+        x_dist = np.linspace(a, b, 1000)
         y_dist = [NormalDistributionFunc(x, m, sigma) for x in x_dist]
         
         ax2.plot(x_dist, y_dist, 'r-', linewidth=2)
@@ -123,16 +128,18 @@ class DistributionGraphWindow(QDialog):
         ax2.set_xlabel('x')
         ax2.set_ylabel('F(x)')
         ax2.grid(True, alpha=0.3)
+        ax2.set_xlim(a, b)
         ax2.set_ylim(-0.1, 1.1)
     
     def plot_exponential(self):
         lambda_param = self.parameters['lambda_param']
+        a = self.parameters.get('a', 0)  # Если a не передан, используем 0
+        b = self.parameters.get('b', 5 / lambda_param if lambda_param > 0 else 10)  # Если b не передан, используем автоматический расчет
         
         ax1, ax2 = self.figure.subplots(2, 1)
         
-        # График плотности
-        x_max = 5 / lambda_param if lambda_param > 0 else 10
-        x_density = np.linspace(0, x_max, 1000)
+        # График плотности - используем диапазон от a до b
+        x_density = np.linspace(a, b, 1000)
         y_density = [ExponentialDensityFunc(x, lambda_param) for x in x_density]
         
         ax1.plot(x_density, y_density, 'b-', linewidth=2)
@@ -140,9 +147,10 @@ class DistributionGraphWindow(QDialog):
         ax1.set_xlabel('x')
         ax1.set_ylabel('f(x)')
         ax1.grid(True, alpha=0.3)
+        ax1.set_xlim(a, b)
         
-        # График функции распределения
-        x_dist = np.linspace(0, x_max, 1000)
+        # График функции распределения - используем диапазон от a до b
+        x_dist = np.linspace(a, b, 1000)
         y_dist = [ExponentialDistributionFunc(x, lambda_param) for x in x_dist]
         
         ax2.plot(x_dist, y_dist, 'r-', linewidth=2)
@@ -150,16 +158,21 @@ class DistributionGraphWindow(QDialog):
         ax2.set_xlabel('x')
         ax2.set_ylabel('F(x)')
         ax2.grid(True, alpha=0.3)
+        ax2.set_xlim(a, b)
         ax2.set_ylim(-0.1, 1.1)
     
     def plot_poisson(self):
         lambda_param = self.parameters['lambda_param']
+        a = int(self.parameters.get('a', 0))  # Если a не передан, используем 0
+        b = int(self.parameters.get('b', min(int(lambda_param * 3) + 5, 50)))  # Если b не передан, используем автоматический расчет
         
         # Для Пуассона строим только график вероятностей (дискретное распределение)
         ax = self.figure.add_subplot(111)
         
-        k_max = min(int(lambda_param * 3) + 5, 50)  # Ограничиваем максимальное k
-        k_values = list(range(0, k_max + 1))
+        # Ограничиваем k значениями от a до b
+        k_min = max(0, a)
+        k_max = min(int(lambda_param * 3) + 5, b, 50)  # Ограничиваем максимальное k
+        k_values = list(range(k_min, k_max + 1))
         probabilities = [PoissonProbabilityFunc(k, lambda_param) for k in k_values]
         
         ax.bar(k_values, probabilities, width=1.0, align='edge', alpha=0.7, color='blue')
@@ -167,17 +180,19 @@ class DistributionGraphWindow(QDialog):
         ax.set_xlabel('k')
         ax.set_ylabel('P(X=k)')
         ax.grid(True, alpha=0.3)
-        ax.set_xticks(k_values[::max(1, k_max//10)])
+        ax.set_xlim(k_min, k_max + 1)
+        ax.set_xticks(k_values[::max(1, len(k_values)//10)])
     
     def plot_erlang(self):
         k = self.parameters['k']
         lambda_param = self.parameters['lambda_param']
+        a = self.parameters.get('a', 0)  # Если a не передан, используем 0
+        b = self.parameters.get('b', (k + 4 * sqrt(k)) / lambda_param if lambda_param > 0 else 10)  # Если b не передан, используем автоматический расчет
         
         ax1, ax2 = self.figure.subplots(2, 1)
         
-        # График плотности
-        x_max = (k + 4 * sqrt(k)) / lambda_param if lambda_param > 0 else 10
-        x_density = np.linspace(0, x_max, 1000)
+        # График плотности - используем диапазон от a до b
+        x_density = np.linspace(a, b, 1000)
         y_density = [ErlangDensityFunc(x, k, lambda_param) for x in x_density]
         
         ax1.plot(x_density, y_density, 'b-', linewidth=2)
@@ -185,9 +200,10 @@ class DistributionGraphWindow(QDialog):
         ax1.set_xlabel('x')
         ax1.set_ylabel('f(x)')
         ax1.grid(True, alpha=0.3)
+        ax1.set_xlim(a, b)
         
-        # График функции распределения
-        x_dist = np.linspace(0, x_max, 1000)
+        # График функции распределения - используем диапазон от a до b
+        x_dist = np.linspace(a, b, 1000)
         y_dist = [ErlangDistributionFunc(x, k, lambda_param) for x in x_dist]
         
         ax2.plot(x_dist, y_dist, 'r-', linewidth=2)
@@ -195,6 +211,7 @@ class DistributionGraphWindow(QDialog):
         ax2.set_xlabel('x')
         ax2.set_ylabel('F(x)')
         ax2.grid(True, alpha=0.3)
+        ax2.set_xlim(a, b)
         ax2.set_ylim(-0.1, 1.1)
 
 '''
