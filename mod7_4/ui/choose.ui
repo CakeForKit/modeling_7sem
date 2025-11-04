@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>825</width>
-    <height>384</height>
+    <height>387</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -83,7 +83,7 @@
          </font>
         </property>
         <property name="text">
-         <string>Показать</string>
+         <string>Выбрать</string>
         </property>
        </widget>
       </item>
@@ -119,7 +119,7 @@
          </font>
         </property>
         <property name="text">
-         <string>Показать</string>
+         <string>Выбрать</string>
         </property>
        </widget>
       </item>
@@ -131,7 +131,7 @@
          </font>
         </property>
         <property name="text">
-         <string>Показать</string>
+         <string>Выбрать</string>
         </property>
        </widget>
       </item>
@@ -271,7 +271,7 @@
          </font>
         </property>
         <property name="text">
-         <string>Показать</string>
+         <string>Выбрать</string>
         </property>
        </widget>
       </item>
@@ -364,7 +364,7 @@
          </font>
         </property>
         <property name="text">
-         <string>Показать</string>
+         <string>Выбрать</string>
         </property>
        </widget>
       </item>
