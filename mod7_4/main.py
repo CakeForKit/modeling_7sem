@@ -54,7 +54,7 @@ class MainWindow(QMainWindow):
     def display_results(self, processed_requests, reentered_requests, max_queue_size):
         self.ui.cnt_proc_requests.setText(str(processed_requests))
         self.ui.cnt_dub_proc_requests.setText(str(reentered_requests))
-        self.ui.max_queue_length.setText(str(max_queue_size))
+        self.ui.max_queue_length.setText(str(max_queue_size)) 
 
     def fill_method_combobox(self):
         methods = ["Принцип ∆t", "Событийный принцип"]

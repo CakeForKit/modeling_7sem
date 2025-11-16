@@ -2,8 +2,7 @@
 
 .PHONY: uipy
 uipy:
-	pyuic5 ./mod7_4/ui/main_window.ui -o ui.py
-	pyuic5 ./mod7_4/ui/choose.ui -o choose.py
+	pyuic5 ./mod7_5/ui/mainWindow.ui -o ui.py
 
 
 .PHONY: clear
