@@ -30,10 +30,7 @@ class System:
         self.comp2_busy = False
 
     def calculate(self):
-        if self.method == 'delta t':
-            self.calculate_delta_t()
-        else:
-            self.calculate_events()
+        self.calculate_events()
 
         result = {
             'generated_count': self.generated_count,

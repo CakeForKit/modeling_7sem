@@ -4,8 +4,8 @@ from PyQt5.QtCore import pyqtSlot
 from PyQt5.QtWidgets import QApplication, QMainWindow, QMessageBox
 from PyQt5 import uic
 import sys
-import system
-from laws import UniformDistributionLaw, ConstantDistributionLaw
+import usystem
+import laws 
 
 UI_MAINWINDOW_PATH = "./mod7_5/ui/mainWindow.ui"
 
@@ -24,53 +24,19 @@ class MainWindow(QMainWindow):
     def connect_buttons(self):
         self.ui.modeling_btn.clicked.connect(self.modeling)
 
-    # def initialize_system(self):
-    #     try:
-    #         # Получение параметров из интерфейса
-    #         client_avg = self.ui.client_spb.value()
-    #         client_delta = self.ui.client_delta_spb.value()
-            
-    #         op1_avg = self.ui.op1_spb.value()
-    #         op1_delta = self.ui.op1_delta_spb.value()
-            
-    #         op2_avg = self.ui.op2_spb.value()
-    #         op2_delta = self.ui.op2_delta_spb.value()
-            
-    #         op3_avg = self.ui.op3_spb.value()
-    #         op3_delta = self.ui.op3_delta_spb.value()
-            
-    #         comp1_const = self.ui.comp1_spb.value()
-    #         comp2_const = self.ui.comp2_spb.value()
-            
-    #         n = self.ui.n_spb.value()
-            
-    #         # Создание системы с начальными параметрами
-    #         self.system = system.System(
-    #             client_law=UniformDistributionLaw(a=client_avg-client_delta, b=client_avg+client_delta),
-    #             op1_law=UniformDistributionLaw(a=op1_avg-op1_delta, b=op1_avg+op1_delta),
-    #             op2_law=UniformDistributionLaw(a=op2_avg-op2_delta, b=op2_avg+op2_delta),
-    #             op3_law=UniformDistributionLaw(a=op3_avg-op3_delta, b=op3_avg+op3_delta),
-    #             comp1_law=ConstantDistributionLaw(c=comp1_const),
-    #             comp2_law=ConstantDistributionLaw(c=comp2_const),
-    #             n=n, dt=1, method=self.method
-    #         )
-            
-    #     except Exception as e:
-    #         self.show_error(f"Ошибка инициализации системы: {str(e)}")
-
     def modeling(self):
         try:
             self.update_system_parameters()
-            result = self.system.calculate()
-            self.display_results(result)
+            self.system.simulate()
+            self.display_results()
             
         except Exception as e:
             self.show_error(f"Ошибка при моделировании: {str(e)}")
 
     def update_system_parameters(self):
         try:
-            client_avg = self.ui.client_spb.value()
-            client_delta = self.ui.client_delta_spb.value()
+            client_avg = self.ui.client_spb.value() 
+            client_delta = self.ui.client_delta_spb.value() 
             
             op1_avg = self.ui.op1_spb.value()
             op1_delta = self.ui.op1_delta_spb.value()
@@ -86,29 +52,35 @@ class MainWindow(QMainWindow):
             
             n = self.ui.n_spb.value()
             
-            self.system = system.System(
-                client_law=UniformDistributionLaw(a=client_avg-client_delta, b=client_avg+client_delta),
-                op1_law=UniformDistributionLaw(a=op1_avg-op1_delta, b=op1_avg+op1_delta),
-                op2_law=UniformDistributionLaw(a=op2_avg-op2_delta, b=op2_avg+op2_delta),
-                op3_law=UniformDistributionLaw(a=op3_avg-op3_delta, b=op3_avg+op3_delta),
-                comp1_law=ConstantDistributionLaw(c=comp1_const),
-                comp2_law=ConstantDistributionLaw(c=comp2_const),
-                n=n, dt=1, method=self.method
-            )
+            clientLaw = laws.UniformDistributionLaw(a=client_avg-client_delta, b=client_avg+client_delta)
+            operators = [
+                usystem.Operator(laws.UniformDistributionLaw(a=op1_avg-op1_delta, b=op1_avg+op1_delta), usystem.OP1_EVENT),
+                usystem.Operator(laws.UniformDistributionLaw(a=op2_avg-op2_delta, b=op2_avg+op2_delta), usystem.OP2_EVENT),
+                usystem.Operator(laws.UniformDistributionLaw(a=op3_avg-op3_delta, b=op3_avg+op3_delta), usystem.OP3_EVENT),
+            ]
+            computer1 = usystem.Computer(laws.ConstantDistributionLaw(comp1_const), usystem.COMP1_EVENT)
+            computer2 = usystem.Computer(laws.ConstantDistributionLaw(comp2_const), usystem.COMP2_EVENT)
+            N = n
+            self.system = usystem.System(clientLaw, operators, computer1, computer2, N)
             
         except ValueError as e:
             raise ValueError(f"Некорректные значения параметров: {str(e)}")
         except Exception as e:
             raise Exception(f"Ошибка обновления параметров: {str(e)}")
 
-    def display_results(self, result):
+    def display_results(self):
         try:
-            self.ui.processed_count_line_edit.setText(str(result['processed_count']))
-            self.ui.rejected_count_line_edit.setText(str(result['rejected_count']))
+            generated_count = self.system.generated_count
+            processed_count = self.system.processed_count
+            rejected_count = self.system.rejected_count
+            self.ui.processed_count_line_edit.setText(str(processed_count))
+            self.ui.rejected_count_line_edit.setText(str(rejected_count))
             
-            total_requests = result['generated_count'] + result['rejected_count']
+            # print("generated_count = ", generated_count)
+
+            total_requests = processed_count + rejected_count
             if total_requests > 0:
-                rejection_probability = result['rejected_count'] / total_requests
+                rejection_probability = rejected_count / total_requests
                 self.ui.rejected_probability_line_edit.setText(f"{rejection_probability:.4f}")
             else:
                 self.ui.rejected_probability_line_edit.setText("0.0000")

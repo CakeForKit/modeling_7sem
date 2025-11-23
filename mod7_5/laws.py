@@ -3,12 +3,42 @@ import abc
 import bisect
 from math import e, pi, inf
 import random
-
+import numpy.random as nr
 
 STEPS_COUNT = 1000
 
 
 class DistributionLaw(abc.ABC):
+    @abc.abstractmethod
+    def __init__(self) -> None:
+        raise NotImplementedError("Not realised method init")
+    
+
+    @abc.abstractmethod
+    def get_value(self) -> float:
+        raise NotImplementedError("Not realised method get_value")
+    
+class UniformDistributionLaw(DistributionLaw):
+    def __init__(self, a: float, b: float) -> None:
+        if not 0 <= a <= b:
+            raise ValueError('The parameters should be in range [a, b]')
+        self._a = a
+        self._b = b
+
+    def get_value(self) -> float:
+        return nr.uniform(self._a, self._b)
+    
+    def info(self):
+        return f"Равномерное распределение: a={self._a}, b={self._b}"
+
+class ConstantDistributionLaw(DistributionLaw):
+    def __init__(self, c: float):
+        self.c = c
+
+    def get_value(self) -> float:
+        return self.c
+
+class DistributionLaw1(abc.ABC):
     def __init__(self, *, left_border, right_border, **parameters):
         for name, value in parameters.items():
             setattr(self, name, value)
@@ -63,7 +93,7 @@ class DistributionLaw(abc.ABC):
         pass
 
 
-class UniformDistributionLaw(DistributionLaw):
+class UniformDistributionLaw1(DistributionLaw):
     a: float
     b: float
 
@@ -105,7 +135,7 @@ class NormalDistributionLaw(DistributionLaw):
         )
 
 
-class ConstantDistributionLaw(DistributionLaw):
+class ConstantDistributionLaw1(DistributionLaw):
     c: float
 
     def __init__(self, *, c):
@@ -125,6 +155,11 @@ class ConstantDistributionLaw(DistributionLaw):
         return 1
 
 
+
+
 if __name__ == '__main__':
-    law = ConstantDistributionLaw(c=15)
-    print(law.random())
+    law = UniformGenerator(2, 10)
+    for i in range(10):
+        print(law.next())
+    # law = ConstantDistributionLaw(c=15)
+    # print(law.random())
