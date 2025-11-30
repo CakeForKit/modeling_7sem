@@ -1,4 +1,7 @@
 # Byte-compiled / optimized / DLL files
+*.sim
+*.gpr
+*.mtdt
 __pycache__/
 *.py[codz]
 *$py.class
