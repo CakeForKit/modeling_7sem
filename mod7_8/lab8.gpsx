@@ -1,0 +1,22 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<ExtendedGpssModel>
+  <Lines>
+    <Line Id="1">GENERATE (UNIFORM(1, 2, 8))</Line>
+    <Line Id="2">start_queue QUEUE QUEUE1                     ; Поставить в очередь</Line>
+    <Line Id="3">SEIZE OP1                        ; Захват OP1</Line>
+    <Line Id="4">DEPART QUEUE1                    ; Извлечь из очереди</Line>
+    <Line Id="5">ADVANCE (UNIFORM(1, 2, 5))</Line>
+    <Line Id="31">; (EXPONENTIAL(1, 0, 10) ) ; scale = 1/lambda</Line>
+    <Line Id="30">; ( NORMAL (1,9,2) )   ; Задержка (нормальное распределение m=10, d=2)</Line>
+    <Line Id="32">; (POISSON(1, lambda)) ; </Line>
+    <Line Id="33">; UNIFORM(stream, min, max) ; </Line>
+    <Line Id="6">RELEASE OP1                             ; Освобождение OP1</Line>
+    <Line Id="34">TRANSFER 0.8,repeat,finish</Line>
+    <Line Id="35"></Line>
+    <Line Id="37">repeat SAVEVALUE REPEAT_COUNT+,1    </Line>
+    <Line Id="38">       TRANSFER ,start_queue        </Line>
+    <Line Id="8">finish SAVEVALUE SERVED+,1</Line>
+    <Line Id="39">TERMINATE 1</Line>
+    <Line Id="9">START 1000</Line>
+  </Lines>
+</ExtendedGpssModel>

@@ -13,3 +13,4 @@ clear:
 	find . -name "*.out" -type f -delete
 	find . -name "*.txss2" -type f -delete
 	find . -name "*.log" -type f -delete
+	find . -name "__pycache__" -type d -exec rm -rf {} +
